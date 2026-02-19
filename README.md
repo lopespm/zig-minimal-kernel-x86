@@ -5,8 +5,8 @@ It boots on an x86 (i386) machine via the Multiboot 1 protocol and prints a
 coloured greeting to the VGA text-mode display, then halts the CPU.
 
 The project is designed to be cross-compiled from any host (including Apple
-Silicon Macs) and tested instantly with QEMU — no ISO image, no GRUB
-installation, no bootloader binaries required.
+Silicon Macs) and tested instantly with QEMU. It can be booted directly via
+QEMU's built-in Multiboot loader or through a GRUB rescue ISO.
 
 ## What it does
 
@@ -22,12 +22,16 @@ installation, no bootloader binaries required.
 |------|---------|---------|
 | **Zig** | 0.14.0+ | [ziglang.org/download](https://ziglang.org/download/) or `brew install zig` |
 | **QEMU** | any recent | `brew install qemu` / `nix-env -iA nixpkgs.qemu` |
+| **Docker** | any recent | [docker.com](https://www.docker.com/) *(only needed for GRUB ISO builds)* |
 
-No other dependencies. Zig bundles its own LLVM back-end and linker, so
-cross-compilation to `x86-freestanding-none` works out of the box on any host
-OS and architecture (macOS ARM, Linux x86_64, etc.).
+Zig bundles its own LLVM back-end and linker, so cross-compilation to
+`x86-freestanding-none` works out of the box on any host OS and architecture
+(macOS ARM, Linux x86_64, etc.). Docker is only required for building the
+GRUB ISO, since `grub-pc-bin` is an x86 Linux package.
 
 ## How to run
+
+### Option 1: Direct Multiboot (no GRUB)
 
 ```bash
 # Build the kernel (produces zig-out/bin/kernel)
@@ -51,6 +55,27 @@ You should see this:
 
 <img width="623" height="239" alt="Screenshot 2026-02-17 at 23 58 16" src="https://github.com/user-attachments/assets/e53f6920-c06b-4586-b551-6b916a7b3d5a" />
 
+### Option 2: GRUB rescue ISO
+
+This builds a bootable ISO with a GRUB menu using Docker, then launches it
+in QEMU:
+
+```bash
+chmod +x run-grub.sh
+./run-grub.sh
+```
+
+You should see this:
+
+<img width="707" height="392" alt="Screenshot 2026-02-19 at 00 29 04" src="https://github.com/user-attachments/assets/b8f3c05b-8f3a-4478-bb3f-fcfabcfc5c01" />
+
+The script performs the following steps:
+1. Builds the kernel with `zig build`
+2. Creates an `iso/boot/grub/` directory structure with a `grub.cfg`
+3. Runs `grub-mkrescue` inside a Docker container (`--platform linux/amd64`)
+   to produce `zig-kernel.iso`
+4. Boots the ISO with `qemu-system-i386 -cdrom zig-kernel.iso`
+
 ## Project structure
 
 ```
@@ -58,7 +83,8 @@ zig-kernel/
 ├── build.zig          Zig build script (target, linker, QEMU run step)
 ├── build.zig.zon      Package manifest
 ├── linker.ld          Linker script (section layout, entry point)
-├── run.sh             Quick-test shell script
+├── run.sh             Quick-test shell script (direct Multiboot via QEMU)
+├── run-grub.sh        Full GRUB ISO build + QEMU boot script
 └── src/
     └── main.zig       Entire kernel: Multiboot header, VGA driver, kmain
 ```
